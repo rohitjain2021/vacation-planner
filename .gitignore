@@ -1,0 +1,18 @@
+# Local credentials: never commit real values.
+.env
+.env.*
+!.env.example
+!.env.template
+.aws/
+*.pem
+*.key
+credentials.json
+service-account*.json
+*.tfstate
+*.tfstate.*
+
+# Local environments and generated execution output.
+.venv/
+__pycache__/
+.crewai/
+vacation_planner/report.md

@@ -4328,11 +4328,17 @@ name = "vacation-planner"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "boto3" },
     { name = "crewai", extra = ["bedrock", "tools"] },
+    { name = "python-dotenv" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "crewai", extras = ["tools", "bedrock"], specifier = ">=1.15.41,<2.0.0" }]
+requires-dist = [
+    { name = "boto3", specifier = ">=1.43.46" },
+    { name = "crewai", extras = ["tools", "bedrock"], specifier = ">=1.15.41,<2.0.0" },
+    { name = "python-dotenv", specifier = ">=1.1.1,<2.0.0" },
+]
 
 [[package]]
 name = "watchfiles"

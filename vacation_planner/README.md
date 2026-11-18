@@ -54,3 +54,13 @@ For support, questions, or feedback regarding the VacationPlanner Crew or crewAI
 - [Chat with our docs](https://chatg.pt/DWjSBZn)
 
 Let's create wonders together with the power and simplicity of crewAI.
+
+## Local credentials
+
+Keep real credentials in `vacation_planner/.env` (this directory), which Git ignores. Commit only `.env.example` with empty values. The crew loads this project's `.env` automatically without overwriting environment variables already set by your shell or deployment.
+
+Set `SERPER_API_KEY` in your local `.env` for web search. Its spelling must be uppercase. AWS Bedrock uses the standard AWS credential chain: a configured local AWS profile, temporary credentials, or an IAM role in deployment. Never put AWS keys, session tokens, or other API keys in Python, YAML, reports, or committed configuration.
+
+Before committing, run `git status --short` and `git diff --cached --name-only` from the repository root. `.env` and credential files must not appear among staged files. Git ignore rules do not remove files already tracked by Git.
+
+If a real credential is ever pushed or shared, revoke/rotate it with its provider first. Removing it from the latest code does not remove it from Git history. Supply deployment credentials through the deployment platform's secret settings rather than committing `.env`.
