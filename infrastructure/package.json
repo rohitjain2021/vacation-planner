@@ -1,0 +1,13 @@
+{
+  "name": "vacation-planner-monitoring-infrastructure",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Resources-only Serverless Framework monitoring deployed through GitHub Actions",
+  "scripts": {
+    "test": "node --test plugins/pipeline-only.test.cjs",
+    "deploy": "serverless deploy --conceal"
+  },
+  "devDependencies": {
+    "serverless": "4.46.0"
+  }
+}

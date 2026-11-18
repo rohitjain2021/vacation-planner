@@ -22,7 +22,14 @@ class StreamlitAppTests(unittest.TestCase):
         )
         fake_crew = types.ModuleType("vacation_planner.crew")
         fake_crew.VacationPlanner = self.planner
-        self.module_patch = patch.dict(sys.modules, {"vacation_planner.crew": fake_crew})
+        self.monitor = Mock()
+        self.monitor.record.return_value = {"logs": True, "email": True}
+        fake_monitoring = types.ModuleType("vacation_planner.monitoring")
+        fake_monitoring.get_monitor = Mock(return_value=self.monitor)
+        self.module_patch = patch.dict(sys.modules, {
+            "vacation_planner.crew": fake_crew,
+            "vacation_planner.monitoring": fake_monitoring,
+        })
         self.module_patch.start()
         self.addCleanup(self.module_patch.stop)
         self.app = AppTest.from_file(str(APP)).run(timeout=15)
@@ -39,11 +46,13 @@ class StreamlitAppTests(unittest.TestCase):
         self.assertEqual(len(self.app.button), 1)
         self.assertIsNone(self.app.session_state["plan"])
         self.planner.assert_not_called()
+        self.monitor.record.assert_not_called()
 
     def test_blank_destination_is_rejected_without_a_model_call(self):
         self.submit("   ")
         self.assertEqual(len(self.app.warning), 1)
         self.planner.assert_not_called()
+        self.monitor.record.assert_not_called()
 
     def test_generation_receives_trimmed_destination_and_current_year(self):
         self.submit("  Tokyo  ")
@@ -53,12 +62,15 @@ class StreamlitAppTests(unittest.TestCase):
         self.assertEqual(self.app.session_state["plan"]["destination"], "Tokyo")
         self.assertTrue(any("## Tokyo itinerary" in item.value for item in self.app.markdown))
         self.assertEqual(len(self.app.get("download_button")), 1)
+        self.assertEqual([call.args[0] for call in self.monitor.record.call_args_list], ["submitted", "succeeded"])
+        self.assertEqual(self.monitor.record.call_args_list[0].args[1], self.monitor.record.call_args_list[1].args[1])
 
     def test_reruns_retain_plan_without_calling_services_again(self):
         self.submit("Tokyo")
         self.app.run(timeout=15)
         self.kickoff.assert_called_once()
         self.assertEqual(self.app.session_state["plan"]["destination"], "Tokyo")
+        self.assertEqual(self.monitor.record.call_count, 2)
         self.assertEqual(len(self.app.get("download_button")), 1)
 
     def test_provider_failure_does_not_expose_details_or_erase_last_plan(self):
@@ -70,6 +82,7 @@ class StreamlitAppTests(unittest.TestCase):
         displayed += " ".join(item.value for item in self.app.error)
         self.assertNotIn("private-provider-detail", displayed)
         self.assertEqual(self.app.session_state["plan"]["destination"], "Tokyo")
+        self.assertEqual(self.monitor.record.call_args.args[0], "failed")
 
     def test_empty_generated_report_is_not_saved(self):
         self.kickoff.return_value = types.SimpleNamespace(raw="   ")

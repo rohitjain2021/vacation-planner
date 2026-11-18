@@ -11,7 +11,7 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   python-checks:
@@ -41,6 +41,17 @@ jobs:
         run: uv run --frozen python -m compileall -q src streamlitui.py ../tests
       - name: Run credential-free application tests
         run: uv run --frozen python -m unittest discover -s ../tests -v
+      - name: Validate monitoring infrastructure configuration
+        run: uv run --frozen python ../infrastructure/scripts/validate.py
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: infrastructure/package-lock.json
+      - name: Check pipeline-only deployment guard
+        working-directory: infrastructure
+        run: npm test
 
   secret-scan:
     name: Credential scan
@@ -66,3 +77,74 @@ jobs:
           tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}/gitleaks-bin" gitleaks
       - name: Scan history for exposed credentials
         run: '"${RUNNER_TEMP}/gitleaks-bin/gitleaks" git --redact=100 --no-banner --log-opts="--all" .'
+
+  deploy-monitoring:
+    name: Deploy monitoring infrastructure
+    needs: [python-checks, secret-scan]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: vacation-planner-prod-monitoring
+      cancel-in-progress: false
+    env:
+      CI: 'true'
+      AWS_REGION: us-east-1
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_EC2_METADATA_DISABLED: 'true'
+      ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+      RUNTIME_IAM_USER_NAME: ${{ vars.RUNTIME_IAM_USER_NAME }}
+      SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
+      SERVERLESS_LICENSE_KEY: ${{ secrets.SERVERLESS_LICENSE_KEY }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Check private deployment configuration
+        env:
+          HAS_AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY_ID != '' }}
+          HAS_AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY != '' }}
+        run: |
+          if [ "$HAS_AWS_ACCESS_KEY" != true ] || [ "$HAS_AWS_SECRET_KEY" != true ]; then
+            echo '::error::Configure AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in repository Actions secrets.'
+            exit 1
+          fi
+          if [ -z "$ALERT_EMAIL" ]; then
+            echo '::error::Configure ALERT_EMAIL in repository Actions secrets.'
+            exit 1
+          fi
+          if [ -z "$SERVERLESS_ACCESS_KEY" ] && [ -z "$SERVERLESS_LICENSE_KEY" ]; then
+            echo '::error::Configure SERVERLESS_ACCESS_KEY or SERVERLESS_LICENSE_KEY in repository Actions secrets.'
+            exit 1
+          fi
+      - name: Configure current AWS deployment credentials
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: true
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: '0.13.8'
+          python-version: '3.13'
+          enable-cache: true
+          cache-dependency-glob: vacation_planner/uv.lock
+      - name: Install locked Python dependencies
+        working-directory: vacation_planner
+        run: uv sync --locked
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: infrastructure/package-lock.json
+      - name: Install locked Serverless Framework
+        working-directory: infrastructure
+        run: npm ci --no-audit --no-fund
+      - name: Package, validate, deploy, and verify monitoring
+        working-directory: vacation_planner
+        run: uv run --frozen python ../infrastructure/scripts/deploy.py

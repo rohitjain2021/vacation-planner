@@ -1,0 +1,17 @@
+{
+  "service_name": "vacation-planner-monitoring",
+  "stage": "prod",
+  "region": "us-east-1",
+  "log_group_name": "/apps/vacation-planner/prod",
+  "log_stream_name": "requests",
+  "topic_name": "vacation-planner-prod-notifications",
+  "metric_namespace": "VacationPlanner/Prod",
+  "dashboard_name": "vacation-planner-prod",
+  "log_retention_days": 30,
+  "alarm_period_seconds": 300,
+  "failure_count_threshold": 3,
+  "slow_request_seconds": 120,
+  "notification_mode": "all",
+  "maximum_destination_characters": 120,
+  "maximum_email_result_characters": 12000
+}

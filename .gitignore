@@ -19,3 +19,8 @@ vacation_planner/report.md
 
 # Local Streamlit credentials, including nested app directories.
 **/.streamlit/secrets.toml
+
+# Generated infrastructure state can contain resolved private deployment parameters.
+node_modules/
+.serverless/
+infrastructure/deployment-summary.json

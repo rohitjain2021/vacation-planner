@@ -1,7 +1,11 @@
 """Simple vacation planning UI with the portfolio's dark, colorful theme."""
 from datetime import datetime
 import re
+from time import perf_counter
+from uuid import uuid4
 import streamlit as st
+
+from vacation_planner.monitoring import get_monitor
 
 st.set_page_config(page_title="AI Vacation Planner", page_icon="\u2708\ufe0f", layout="centered")
 
@@ -55,8 +59,8 @@ def create_plan(destination: str) -> str:
     result = VacationPlanner().crew().kickoff(
         inputs={"topic": destination, "current_year": str(datetime.now().year)}
     )
-    content = getattr(result, "raw", None) or str(result)
-    if not content.strip():
+    content = getattr(result, "raw", result if isinstance(result, str) else "")
+    if not isinstance(content, str) or not content.strip():
         raise ValueError("The planner returned an empty itinerary.")
     return content
 
@@ -87,14 +91,28 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 if submitted and destination.strip():
+    request_id = str(uuid4())
+    monitor = get_monitor()
+    submitted_delivery = monitor.record("submitted", request_id, destination.strip())
     with st.spinner("Researching your destination and creating your plan..."):
+        started = perf_counter()
         try:
             content = create_plan(destination.strip())
-        except Exception:
+        except Exception as error:
+            final_delivery = monitor.record(
+                "failed", request_id, destination.strip(),
+                duration_seconds=perf_counter() - started, error=error,
+            )
             # Provider exceptions can contain sensitive details. Do not display them.
             st.error("We couldn't create your plan right now. Please try again in a moment.")
         else:
             st.session_state["plan"] = {"destination": destination.strip(), "content": content}
+            final_delivery = monitor.record(
+                "succeeded", request_id, destination.strip(),
+                duration_seconds=perf_counter() - started, result=content,
+            )
+    if not all(submitted_delivery.values()) or not all(final_delivery.values()):
+        st.warning("Some status updates could not be delivered. This does not change your planning result.")
 
 plan = st.session_state["plan"]
 if plan:

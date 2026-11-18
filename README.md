@@ -138,6 +138,12 @@ vacation-planner/
 - **Session storage:** The last plan is retained in Streamlit session state, not a persistent trip database. Download it to keep a copy.
 - **Generated files:** `.env`, generated reports, and local environment files are excluded from Git. On a hosted instance, `report.md` is a local runtime file and may be overwritten by another run.
 
+### Request monitoring and administrator notifications
+
+The application now includes request instrumentation for submitted destinations and successful or failed generation results. The [monitoring configuration](vacation_planner/src/vacation_planner/monitoring_config.json) defines resource names, thresholds, retention, and notification behavior in one place. The Serverless Framework monitoring service and deployment verification are described in the [infrastructure guide](infrastructure/README.md).
+
+With the AWS stack deployed and its SNS subscription confirmed, the administrator receives an email for each valid submission and each final result. CloudWatch provides request logs, outcome counts, generation duration, a dashboard, and alarms. Notification delivery failures do not discard a generated travel plan. The diagram's planned monitoring branch remains a design overview until deployment and email verification have been recorded.
+
 ## 8. GitHub Actions pipeline
 
 [Vacation Planner CI](https://github.com/rohitjain2021/vacation-planner/actions/workflows/ci.yml) runs on pushes to `main`, pull requests, and manual requests from the Actions tab.
@@ -152,4 +158,4 @@ Run the application tests locally from `vacation_planner/`:
 uv run --frozen python -m unittest discover -s ../tests -v
 ```
 
-Streamlit Community Cloud continues updating from its configured GitHub branch. This workflow checks changes; it does not gate direct pushes or change deployment settings. To require passing checks before a merge, configure a branch rule for `main` requiring **Python checks** and **Credential scan**.
+Streamlit Community Cloud continues updating from its configured GitHub branch. After both checks pass on `main`, a separate job packages, validates, deploys, and verifies the monitoring infrastructure using Serverless Framework and the repository's private deployment settings. Pull requests cannot deploy. To require passing checks before a merge, configure a branch rule for `main` requiring **Python checks** and **Credential scan**.
