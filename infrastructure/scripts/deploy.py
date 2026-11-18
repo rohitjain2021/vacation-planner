@@ -46,7 +46,7 @@ def run():
     if not re.fullmatch(r"[\w+=,.@-]+", environment["RUNTIME_IAM_USER_NAME"]):
         raise RuntimeError("RUNTIME_IAM_USER_NAME must name an existing IAM user, not an ARN or role.")
     cf = session.client("cloudformation")
-    subprocess.run(["npm", "exec", "--", "serverless", "package", "--conceal"], cwd=INFRA, env=environment, check=True)
+    subprocess.run(["npm", "exec", "--", "serverless", "package"], cwd=INFRA, env=environment, check=True)
     template_path = INFRA / ".serverless/cloudformation-template-update-stack.json"
     template = json.loads(template_path.read_text())
     assert not any(r.get("Type") == "AWS::Lambda::Function" for r in template["Resources"].values())
