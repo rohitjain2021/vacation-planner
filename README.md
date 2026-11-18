@@ -24,7 +24,7 @@ A simple travel-planning app built with **Streamlit**, **CrewAI**, and **Amazon 
 
 [Open the full-size diagram](./docs/images/vacation-planner-architecture.png) | [Editable SVG](./architecture.svg).
 
-Solid blue connections show the current Streamlit, CrewAI, Serper, Bedrock, and GitHub delivery flow. Dashed pink connections and Planned labels show the proposed CloudWatch logs, metrics, alarms, SNS, and email alerts. The bottom strip shows the proposed Serverless Framework / CloudFormation monitoring deployment. Monitoring and infrastructure deployment are design proposals only; they have not been implemented by this diagram update.
+Enter a destination in Streamlit, and CrewAI uses Serper web search and Amazon Bedrock Nova Pro to create a downloadable travel guide. Each submission and result sends an SNS email and a CloudWatch log; GitHub Actions deploys the monitoring infrastructure using Serverless Framework and CloudFormation.
 
 ### How the parts connect
 
@@ -35,8 +35,11 @@ Solid blue connections show the current Streamlit, CrewAI, Serper, Bedrock, and 
 5. **Shared language model:** Both agents use Amazon Nova Pro through Amazon Bedrock, configured as `bedrock/us.amazon.nova-pro-v1:0`.
 6. **Results:** The crew returns its generated text to Streamlit for display and download. Session state retains the last completed plan across normal app reruns.
 7. **File output:** The reporting task also writes `report.md` to the application's host filesystem. The UI displays the returned crew result rather than rereading an older report file.
+8. **Request notifications:** Streamlit records each valid submission and its success/failure result. The monitoring module writes metadata to CloudWatch Logs and independently publishes to SNS; result emails include the generated guide, bounded to 12,000 characters.
+9. **Operational alerts:** CloudWatch metric filters feed the dashboard and alarms for repeated failures, generation duration, and notification-publishing failures. Alarms send additional SNS emails; failure and latency alarms also send recovery notices.
+10. **Infrastructure delivery:** GitHub Actions tests and scans changes on `main`, assumes the project's OIDC deployment role, and runs Serverless Framework to package, validate, deploy, and verify the CloudFormation monitoring stack. Streamlit updates separately from its connected GitHub branch.
 
-The dashed diagram connection shows the alternative CLI entry point. YAML files define the agents and tasks. Credentials are supplied separately through local or hosted environment configuration.
+The alternative CLI entry point uses the same two-agent CrewAI workflow; request monitoring shown in the diagram is invoked by the Streamlit UI. YAML files define the agents and tasks, and credentials are supplied separately through local or hosted environment configuration. Blue arrows show application requests and responses, pink arrows show implemented monitoring and notifications, and purple arrows show infrastructure deployment.
 
 ## 3. Technology stack
 
@@ -142,7 +145,7 @@ vacation-planner/
 
 The application now includes request instrumentation for submitted destinations and successful or failed generation results. The [monitoring configuration](vacation_planner/src/vacation_planner/monitoring_config.json) defines resource names, thresholds, retention, and notification behavior in one place. The Serverless Framework monitoring service and deployment verification are described in the [infrastructure guide](infrastructure/README.md).
 
-With the AWS stack deployed and its SNS subscription confirmed, the administrator receives an email for each valid submission and each final result. CloudWatch provides request logs, outcome counts, generation duration, a dashboard, and alarms. Notification delivery failures do not discard a generated travel plan. The diagram's planned monitoring branch remains a design overview until deployment and email verification have been recorded.
+The AWS monitoring stack is deployed, and the SNS subscription is confirmed. Submission and result emails have been verified through the live app. CloudWatch provides request logs, outcome counts, generation duration, a dashboard, and alarms; alarm emails are additional to the app's direct request emails. Notification delivery failures do not discard a generated travel plan.
 
 ## 8. GitHub Actions pipeline
 
@@ -158,4 +161,4 @@ Run the application tests locally from `vacation_planner/`:
 uv run --frozen python -m unittest discover -s ../tests -v
 ```
 
-Streamlit Community Cloud continues updating from its configured GitHub branch. After both checks pass on `main`, a separate job packages, validates, deploys, and verifies monitoring using Serverless Framework and a project-specific GitHub OIDC role. AWS deployment access keys are not stored in Actions. The role bootstrap and repository configuration are prerequisites, documented in the [infrastructure guide](infrastructure/README.md); monitoring has not yet been deployed. Pull requests cannot deploy. To require passing checks before a merge, configure a branch rule for `main` requiring **Python checks** and **Credential scan**.
+Streamlit Community Cloud continues updating from its configured GitHub branch. After both checks pass on `main`, a separate job packages, validates, deploys, and verifies monitoring using Serverless Framework and a project-specific GitHub OIDC role. AWS deployment access keys are not stored in Actions. Monitoring deployment and CloudWatch smoke events were verified by the [successful deployment run](https://github.com/rohitjain2021/vacation-planner/actions/runs/44394993302); role bootstrap and configuration are documented in the [infrastructure guide](infrastructure/README.md). Pull requests cannot deploy. To require passing checks before a merge, configure a branch rule for `main` requiring **Python checks** and **Credential scan**.

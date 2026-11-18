@@ -1,9 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1080" viewBox="0 0 1600 1080" role="img" aria-labelledby="title description">
-<title id="title">AI Vacation Planner: simple architecture and planned monitoring</title>
-<desc id="description">Current flow: a traveler enters a destination in Streamlit Community Cloud. Streamlit invokes a sequential CrewAI workflow with a research agent and an itinerary agent. The researcher uses Serper web search, and both agents use Amazon Bedrock Nova Pro. The Markdown guide returns to Streamlit for display and download; reporting also writes a local report.md file. GitHub Actions currently runs dependency, Python, mocked application, and credential checks, while Streamlit updates from its connected repository branch. Planned application instrumentation sends request outcomes and duration to CloudWatch Logs. Planned CloudWatch metrics and alarms notify Amazon SNS, which sends alarm and recovery email to a confirmed subscription. A planned Serverless Framework configuration deploys the monitoring resources through CloudFormation. Pink dashed components and links are planned, not deployed. Authentication details are omitted from this overview.</desc>
+<title id="title">AI Vacation Planner: implemented application, monitoring, and CI/CD architecture</title>
+<desc id="description">A traveler enters a destination in Streamlit Community Cloud. VacationPlanner defines two agents: vacation_researcher and itinerary_planner. CrewAI runs research_task then reporting_task sequentially, passing research as context. Only the researcher uses Serper web search. Both agents use Amazon Bedrock Nova Pro. The Markdown result returns to Streamlit for display and download; reporting also writes report.md locally. The Streamlit application sends submitted, succeeded, or failed events directly to CloudWatch Logs and directly to SNS. CloudWatch metric filters feed the dashboard and alarms for generation failures, generation duration, and notification publishing failures. Alarms publish additional SNS emails; failure and latency alarms also send recovery emails. The confirmed email subscription delivers request status, bounded generated results, and alarm notifications. GitHub Actions tests and scans main-branch code, assumes the project deployment role using OIDC, then runs Serverless Framework to package and validate CloudFormation, deploy monitoring, and verify smoke events. Streamlit updates separately from its connected repository branch. All shown services are implemented; live submission and result emails have been verified.</desc>
 <!-- AWS service artwork: https://aws.amazon.com/architecture/icons/ ; brand glyphs: https://github.com/simple-icons/simple-icons -->
 <defs>
  <marker id="blue" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 8 4 0 8Z" fill="#087bdc"/></marker>
+ <marker id="blue-start" markerWidth="8" markerHeight="8" refX="1" refY="4" orient="auto"><path d="M8 0 0 4 8 8Z" fill="#087bdc"/></marker>
  <marker id="pink" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 8 4 0 8Z" fill="#ed1a82"/></marker>
  <marker id="purple" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 8 4 0 8Z" fill="#8c35f5"/></marker>
  <style>
@@ -15,22 +16,21 @@
  .body{font-size:15px;fill:#087bdc}
  .small{font-size:12px;fill:#536782}
  .label{font-size:14px;fill:#087bdc}
- .plan{font-size:11px;font-weight:700;letter-spacing:1px;fill:#d51b71}
  .flow{fill:none;stroke:#087bdc;stroke-width:2.5;marker-end:url(#blue)}
- .planned{fill:none;stroke:#ed1a82;stroke-width:2.5;stroke-dasharray:7 5;marker-end:url(#pink)}
- .infra{fill:none;stroke:#8c35f5;stroke-width:2.5;stroke-dasharray:7 5;marker-end:url(#purple)}
+ .monitoring{fill:none;stroke:#ed1a82;stroke-width:2.5;marker-end:url(#pink)}
+ .infra{fill:none;stroke:#8c35f5;stroke-width:2.5;marker-end:url(#purple)}
  </style>
 </defs>
 <rect width="1600" height="1080" fill="#fff"/>
 
 <text x="800" y="58" class="title" text-anchor="middle">AI Vacation Planner</text>
-<text x="800" y="100" class="subtitle" text-anchor="middle">Simple architecture</text>
-<text x="800" y="129" class="small" text-anchor="middle">Solid blue: current application flow  |  Dashed pink: planned monitoring and alerts</text>
+<text x="800" y="100" class="subtitle" text-anchor="middle">Application, monitoring &amp; deployment</text>
+<text x="800" y="129" class="small" text-anchor="middle">Blue: application flow  |  Pink: request notifications &amp; monitoring  |  Purple: infrastructure deployment</text>
 <rect x="85" y="174" width="340" height="100" rx="8" fill="#fff" stroke="#2e85eb" stroke-width="1.7"/>
 <g transform="translate(105 195) scale(2.0416666666666665)" fill="#0b143b"><path xmlns="http://www.w3.org/2000/svg" d="M10.984 13.836a.5.5 0 0 1-.353-.146l-.745-.743a.5.5 0 1 1 .706-.708l.392.391 1.181-1.18a.5.5 0 0 1 .708.707l-1.535 1.533a.504.504 0 0 1-.354.146zm9.353-.147l1.534-1.532a.5.5 0 0 0-.707-.707l-1.181 1.18-.392-.391a.5.5 0 1 0-.706.708l.746.743a.497.497 0 0 0 .706-.001zM4.527 7.452l2.557-1.585A1 1 0 0 0 7.09 4.17L4.533 2.56A1 1 0 0 0 3 3.406v3.196a1.001 1.001 0 0 0 1.527.85zm2.03-2.436L4 6.602V3.406l2.557 1.61zM24 12.5c0 1.93-1.57 3.5-3.5 3.5a3.503 3.503 0 0 1-3.46-3h-2.08a3.503 3.503 0 0 1-3.46 3 3.502 3.502 0 0 1-3.46-3h-.558c-.972 0-1.85-.399-2.482-1.042V17c0 1.654 1.346 3 3 3h.04c.244-1.693 1.7-3 3.46-3 1.93 0 3.5 1.57 3.5 3.5S13.43 24 11.5 24a3.502 3.502 0 0 1-3.46-3H8c-2.206 0-4-1.794-4-4V9.899A5.008 5.008 0 0 1 0 5c0-2.757 2.243-5 5-5s5 2.243 5 5a5.005 5.005 0 0 1-4.952 4.998A2.482 2.482 0 0 0 7.482 12h.558c.244-1.693 1.7-3 3.46-3a3.502 3.502 0 0 1 3.46 3h2.08a3.503 3.503 0 0 1 3.46-3c1.93 0 3.5 1.57 3.5 3.5zm-15 8c0 1.378 1.122 2.5 2.5 2.5s2.5-1.122 2.5-2.5-1.122-2.5-2.5-2.5S9 19.122 9 20.5zM5 9c2.206 0 4-1.794 4-4S7.206 1 5 1 1 2.794 1 5s1.794 4 4 4zm9 3.5c0-1.378-1.122-2.5-2.5-2.5S9 11.122 9 12.5s1.122 2.5 2.5 2.5 2.5-1.122 2.5-2.5zm9 0c0-1.378-1.122-2.5-2.5-2.5S18 11.122 18 12.5s1.122 2.5 2.5 2.5 2.5-1.122 2.5-2.5zm-13 8a.5.5 0 1 0 1 0 .5.5 0 0 0-1 0zm2 0a.5.5 0 1 0 1 0 .5.5 0 0 0-1 0zm12 0c0 1.93-1.57 3.5-3.5 3.5a3.503 3.503 0 0 1-3.46-3.002c-.007.001-.013.005-.021.005l-.506.017h-.017a.5.5 0 0 1-.016-.999l.506-.017c.018-.002.035.006.052.007A3.503 3.503 0 0 1 20.5 17c1.93 0 3.5 1.57 3.5 3.5zm-1 0c0-1.378-1.122-2.5-2.5-2.5S18 19.122 18 20.5s1.122 2.5 2.5 2.5 2.5-1.122 2.5-2.5z" /></g>
 <text x="170" y="207" class="node" text-anchor="start">GitHub / Actions</text>
-<text x="170" y="233" class="body" text-anchor="start">Checks + 9 mocked tests</text>
-<text x="170" y="255" class="small" text-anchor="start">Credential scan / main branch</text>
+<text x="170" y="233" class="body" text-anchor="start">Tests + credential scan</text>
+<text x="170" y="255" class="small" text-anchor="start">Main branch / OIDC deployment role</text>
 <path d="M255 274V307H375V360" class="flow"/>
 <text x="280" y="296" class="label" text-anchor="start">Connected branch updates</text>
 <rect x="655" y="174" width="315" height="100" rx="8" fill="#fff" stroke="#1888d7" stroke-width="1.7"/>
@@ -51,12 +51,20 @@
 <g transform="translate(614 301) scale(1.4583333333333333)" fill="#e75d36"><path xmlns="http://www.w3.org/2000/svg" d="M12.482.18C7.161 1.319 1.478 9.069 1.426 15.372c-.051 5.527 3.1 8.68 8.68 8.627 6.716-.05 14.259-6.87 12.09-10.9-.672-1.292-1.396-1.344-2.687-.207-1.602 1.395-1.654.31-.207-2.893 1.757-3.98 1.705-5.322-.31-7.544C17.03.388 14.962-.388 12.482.181Zm5.322 2.068c2.273 2.015 2.376 4.236.465 8.42-1.395 3.1-2.17 3.515-3.824 1.86-1.24-1.24-1.343-3.46-.258-6.044 1.137-2.635.982-3.1-.568-1.653-3.72 3.358-6.458 9.765-5.424 12.503.464 1.189.825 1.395 2.737 1.395 2.79 0 6.303-1.705 7.957-3.926 1.756-2.274 2.79-2.274 2.79-.052 0 3.875-6.459 8.627-11.625 8.627-6.251 0-9.351-4.752-7.491-11.47.878-2.995 4.443-7.904 7.077-9.66 3.255-2.17 5.684-2.17 8.164 0z" /></g>
 <text x="676" y="328" class="node" text-anchor="start">CrewAI workflow</text>
 <rect x="620" y="355" width="205" height="162" rx="8" fill="#fff9f3" stroke="#ed9b58" stroke-width="1.7"/>
-<g transform="translate(699 374) scale(0.9375)" fill="none" stroke="#d9722c" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="21" cy="21" r="14"/><path d="m31 31 13 13M13 15h16M13 22h16M13 29h9"/></g>
+<g id="research-agent">
+<g transform="translate(695 374) scale(0.9375)" fill="none" stroke="#d9722c" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M24 10V5M5 20H2v10h3M43 20h3v10h-3"/><circle cx="24" cy="3" r="2"/><rect x="7" y="11" width="34" height="27" rx="7"/><circle cx="17" cy="23" r="2"/><circle cx="31" cy="23" r="2"/><path d="M18 31h12M14 38v6M34 38v6M10 44h28"/></g>
+<circle cx="739" cy="413" r="13" fill="#fff"/>
+<g transform="translate(729 403) scale(0.4166666666666667)" fill="none" stroke="#d9722c" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="21" cy="21" r="14"/><path d="m31 31 13 13M13 15h16M13 22h16M13 29h9"/></g>
+</g>
 <text x="722" y="447" class="agent" text-anchor="middle">Research agent</text>
 <text x="722" y="476" class="body" text-anchor="middle">Task 1: research</text>
 <text x="722" y="500" class="small" text-anchor="middle">Destination facts</text>
 <rect x="855" y="355" width="205" height="162" rx="8" fill="#f2fbf8" stroke="#40aa8b" stroke-width="1.7"/>
-<g transform="translate(935 374) scale(0.9375)" fill="none" stroke="#148578" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h22l10 10v32H9ZM31 3v11h10M16 23h18M16 30h18M16 37h12"/></g>
+<g id="itinerary-agent">
+<g transform="translate(930 374) scale(0.9375)" fill="none" stroke="#148578" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M24 10V5M5 20H2v10h3M43 20h3v10h-3"/><circle cx="24" cy="3" r="2"/><rect x="7" y="11" width="34" height="27" rx="7"/><circle cx="17" cy="23" r="2"/><circle cx="31" cy="23" r="2"/><path d="M18 31h12M14 38v6M34 38v6M10 44h28"/></g>
+<circle cx="974" cy="413" r="13" fill="#fff"/>
+<g transform="translate(964 403) scale(0.4166666666666667)" fill="none" stroke="#148578" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h22l10 10v32H9ZM31 3v11h10M16 23h18M16 30h18M16 37h12"/></g>
+</g>
 <text x="957" y="447" class="agent" text-anchor="middle">Itinerary agent</text>
 <text x="957" y="476" class="body" text-anchor="middle">Task 2: reporting</text>
 <text x="957" y="500" class="small" text-anchor="middle">History, food &amp; travel guide</text>
@@ -68,7 +76,7 @@
 <text x="538" y="405" class="label" text-anchor="middle">Plan request</text>
 <path d="M590 535H495" class="flow"/>
 <text x="540" y="559" class="label" text-anchor="middle">Travel guide</text>
-<path d="M722 355V343H570V224H650" class="flow"/>
+<path d="M722 355V343H570V224H650" class="flow" marker-start="url(#blue-start)"/>
 <text x="570" y="206" class="label" text-anchor="middle">Web search</text>
 <rect x="1250" y="365" width="280" height="230" rx="8" fill="#fff" stroke="#00ad91" stroke-width="1.7"/>
 <g transform="translate(1347 384) scale(1.075)"><g xmlns="http://www.w3.org/2000/svg" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
@@ -87,11 +95,11 @@
 <text x="1170" y="423" class="label" text-anchor="middle">Model calls</text>
 <path d="M1250 480H1095" class="flow"/>
 <text x="1170" y="505" class="label" text-anchor="middle">Responses</text>
-<path d="M375 595V664H985V705" class="planned"/>
-<text x="665" y="654" class="label" text-anchor="middle" style="fill:#ed1a82">App events: outcome, failures, duration</text>
-<rect x="820" y="710" width="330" height="150" rx="8" fill="#fff" stroke="#ed1a82" stroke-width="1.7" stroke-dasharray="7 5"/>
-<rect x="939" y="697" width="92" height="24" rx="12" fill="#fff0f6"/>
-<text x="985.0" y="714" class="plan" text-anchor="middle">PLANNED</text>
+<path d="M430 595V664H985V705" class="monitoring"/>
+<text x="765" y="687" class="label" text-anchor="middle" style="fill:#ed1a82">Logs: outcomes, duration &amp; request IDs</text>
+<path d="M375 595V690H570V705" class="monitoring"/>
+<text x="473" y="680" class="label" text-anchor="middle" style="fill:#ed1a82">Submission + result</text>
+<rect x="820" y="710" width="330" height="150" rx="8" fill="#fff" stroke="#ed1a82" stroke-width="1.7"/>
 <g transform="translate(847 736) scale(0.7375)"><g xmlns="http://www.w3.org/2000/svg" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
         <g fill="#E7157B">
             <rect x="0" y="0" width="80" height="80" />
@@ -99,11 +107,9 @@
         <path d="M55.0592315,46.7773707 C55.0592315,42.8680281 51.8575588,39.6876305 47.9220646,39.6876305 C43.9865705,39.6876305 40.785903,42.8680281 40.785903,46.7773707 C40.785903,50.6867133 43.9865705,53.8671108 47.9220646,53.8671108 C51.8575588,53.8671108 55.0592315,50.6867133 55.0592315,46.7773707 M57.0697011,46.7773707 C57.0697011,51.7881194 52.9663327,55.8642207 47.9220646,55.8642207 C42.8788018,55.8642207 38.7754334,51.7881194 38.7754334,46.7773707 C38.7754334,41.7666219 42.8788018,37.6905206 47.9220646,37.6905206 C52.9663327,37.6905206 57.0697011,41.7666219 57.0697011,46.7773707 M65.5096522,60.4735504 L58.5011554,54.2026253 C57.9352082,54.9944794 57.2808004,55.7174332 56.5540156,56.3634982 L63.5524601,62.6334248 C64.1495696,63.1686502 65.0784065,63.1187225 65.6182176,62.5255808 C66.155013,61.9324392 66.1067617,61.010773 65.5096522,60.4735504 M47.9220646,57.6616197 C53.9645309,57.6616197 58.8801289,52.7786859 58.8801289,46.7773707 C58.8801289,40.7750569 53.9645309,35.8931217 47.9220646,35.8931217 C41.8806036,35.8931217 36.9650056,40.7750569 36.9650056,46.7773707 C36.9650056,52.7786859 41.8806036,57.6616197 47.9220646,57.6616197 M67.1119965,63.8626459 C66.4264264,64.6165549 65.47849,65 64.5285431,65 C63.7002296,65 62.8699057,64.708422 62.207456,64.1172774 L54.9305615,57.5987107 C52.9070239,58.8968321 50.505518,59.6587296 47.9220646,59.6587296 C40.7718297,59.6587296 34.9545361,53.8800921 34.9545361,46.7773707 C34.9545361,39.6746493 40.7718297,33.8960118 47.9220646,33.8960118 C55.0733048,33.8960118 60.8905985,39.6746493 60.8905985,46.7773707 C60.8905985,48.8154213 60.3990387,50.7366411 59.5465996,52.4511599 L66.8556616,58.9906963 C68.2750531,60.265851 68.3896499,62.4496907 67.1119965,63.8626459 M21.2803274,29.392529 C21.2803274,29.9117776 21.3124949,30.429029 21.3738143,30.9293051 C21.4089975,31.2138932 21.3205368,31.4984814 21.1295422,31.7131707 C20.9777518,31.8839236 20.7736891,31.9967603 20.550527,32.0347054 C18.0786547,32.6687878 14.0104695,34.5880104 14.0104695,40.3456782 C14.0104695,44.6933865 16.4240382,47.0929141 18.4495863,48.3411077 C19.1411878,48.7744806 19.9594489,49.0051468 20.8229456,49.0141338 L32.9450717,49.0251179 L32.9430613,51.0222278 L20.811888,51.0112437 C19.5664021,50.9982625 18.384246,50.6607509 17.3840374,50.0346569 C15.3765836,48.7974474 12,45.8896553 12,40.3456782 C12,33.66235 16.5999543,31.191925 19.3000149,30.319188 C19.2799102,30.0116331 19.2698579,29.702081 19.2698579,29.392529 C19.2698579,23.9324305 22.9982737,18.2696254 27.9420183,16.2215892 C33.7241287,13.8150717 39.8500294,15.0083449 44.3263399,19.4109737 C45.7135638,20.7749998 46.8545053,22.4316024 47.7300648,24.3478294 C48.9061895,23.3802296 50.355738,22.8460027 51.8836949,22.8460027 C54.8863312,22.8460027 58.2659305,25.1097268 58.8680661,30.0605622 C61.6797078,30.7046302 67.6206453,32.9553731 67.6206453,40.422567 C67.6206453,43.4042521 66.6797455,45.8666886 64.8230769,47.7419748 L63.3896121,46.3410022 C64.8632863,44.8531553 65.6101757,42.8620367 65.6101757,40.422567 C65.6101757,33.891019 60.1055101,32.2663701 57.737177,31.8719409 C57.4677741,31.827006 57.2295334,31.6752256 57.0757325,31.4515493 C56.9259525,31.2358614 56.8686541,30.9712444 56.9138897,30.7146157 C56.5851779,26.6604826 54.1605516,24.8431126 51.8836949,24.8431126 C50.4472144,24.8431126 49.1001998,25.5381069 48.1874466,26.7503526 C47.9652897,27.0439277 47.6044105,27.193711 47.2344841,27.139789 C46.8695838,27.085867 46.5629872,26.8362283 46.4373329,26.4917268 C45.6140456,24.2260057 44.4278686,22.3207628 42.9119745,20.8309188 C39.0327735,17.0154404 33.7281496,15.9809374 28.7170543,18.0649216 C24.5463352,19.7924217 21.2803274,24.7672224 21.2803274,29.392529" fill="#FFFFFF" />
     </g></g>
 <text x="938" y="752" class="node" text-anchor="start">Amazon CloudWatch</text>
-<text x="938" y="779" class="body" text-anchor="start">Logs, metrics &amp; alarms</text>
-<text x="985" y="822" class="small" text-anchor="middle">Failed requests + slow planning</text>
-<rect x="460" y="710" width="220" height="150" rx="8" fill="#fff" stroke="#ed1a82" stroke-width="1.7" stroke-dasharray="7 5"/>
-<rect x="524" y="697" width="92" height="24" rx="12" fill="#fff0f6"/>
-<text x="570.0" y="714" class="plan" text-anchor="middle">PLANNED</text>
+<text x="938" y="779" class="body" text-anchor="start">Logs, metrics &amp; dashboard</text>
+<text x="985" y="822" class="small" text-anchor="middle">Failure, latency &amp; notification-delivery alarms</text>
+<rect x="460" y="710" width="220" height="150" rx="8" fill="#fff" stroke="#ed1a82" stroke-width="1.7"/>
 <g transform="translate(543 734) scale(0.675)"><g xmlns="http://www.w3.org/2000/svg" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
         <g fill="#E7157B">
             <rect x="0" y="0" width="80" height="80" />
@@ -111,29 +117,32 @@
         <path d="M17,38 C18.103,38 19,38.897 19,40 C19,41.103 18.103,42 17,42 C15.897,42 15,41.103 15,40 C15,38.897 15.897,38 17,38 L17,38 Z M41,64 C29.314,64 19.289,55.466 17.194,43.98 C18.965,43.894 20.427,42.659 20.857,41 L27,41 L27,39 L20.857,39 C20.427,37.342 18.966,36.107 17.195,36.02 C19.285,24.71 29.511,16 41,16 C45.313,16 49.832,17.622 54.429,20.821 L55.571,19.179 C50.633,15.743 45.73,14 41,14 C28.27,14 16.949,23.865 15.063,36.521 C13.839,37.207 13,38.5 13,40 C13,41.5 13.839,42.793 15.063,43.478 C16.97,56.341 28.056,66 41,66 C46.407,66 51.942,64.157 56.585,60.811 L55.415,59.189 C51.11,62.292 45.991,64 41,64 L41,64 Z M30.101,36.442 C31.955,36.895 34.275,37 36,37 C37.642,37 39.823,36.905 41.629,36.506 L37.105,45.553 C37.036,45.691 37,45.845 37,46 L37,50.453 C36.199,50.964 34.833,51.812 34,51.986 L34,46 C34,45.868 33.974,45.737 33.923,45.615 L30.101,36.442 Z M36,33 C40.025,33 42.174,33.604 42.841,34 C42.174,34.396 40.025,35 36,35 C31.975,35 29.826,34.396 29.159,34 C29.826,33.604 31.975,33 36,33 L36,33 Z M33,54 L34,54 C34.043,54 34.086,53.997 34.128,53.992 C35.352,53.833 36.909,52.887 38.272,52.013 L38.535,51.845 C38.824,51.661 39,51.342 39,51 L39,46.236 L44.559,35.12 C44.833,34.801 45,34.434 45,34 C45,31.39 39.361,31 36,31 C32.639,31 27,31.39 27,34 C27,34.366 27.12,34.684 27.32,34.967 L32,46.2 L32,53 C32,53.552 32.447,54 33,54 L33,54 Z M62,53 C63.103,53 64,53.897 64,55 C64,56.103 63.103,57 62,57 C60.897,57 60,56.103 60,55 C60,53.897 60.897,53 62,53 L62,53 Z M62,23 C63.103,23 64,23.897 64,25 C64,26.103 63.103,27 62,27 C60.897,27 60,26.103 60,25 C60,23.897 60.897,23 62,23 L62,23 Z M64,38 C65.103,38 66,38.897 66,40 C66,41.103 65.103,42 64,42 C62.897,42 62,41.103 62,40 C62,38.897 62.897,38 64,38 L64,38 Z M54,41 L60.143,41 C60.589,42.72 62.142,44 64,44 C66.206,44 68,42.206 68,40 C68,37.794 66.206,36 64,36 C62.142,36 60.589,37.28 60.143,39 L54,39 L54,26 L58.143,26 C58.589,27.72 60.142,29 62,29 C64.206,29 66,27.206 66,25 C66,22.794 64.206,21 62,21 C60.142,21 58.589,22.28 58.143,24 L53,24 C52.447,24 52,24.448 52,25 L52,39 L45,39 L45,41 L52,41 L52,55 C52,55.552 52.447,56 53,56 L58.143,56 C58.589,57.72 60.142,59 62,59 C64.206,59 66,57.206 66,55 C66,52.794 64.206,51 62,51 C60.142,51 58.589,52.28 58.143,54 L54,54 L54,41 Z" fill="#FFFFFF" />
     </g></g>
 <text x="570" y="812" class="node" text-anchor="middle">Amazon SNS</text>
-<text x="570" y="842" class="body" text-anchor="middle">Alarm notifications</text>
-<rect x="100" y="710" width="250" height="150" rx="8" fill="#fff" stroke="#ed1a82" stroke-width="1.7" stroke-dasharray="7 5"/>
-<rect x="179" y="697" width="92" height="24" rx="12" fill="#fff0f6"/>
-<text x="225.0" y="714" class="plan" text-anchor="middle">PLANNED</text>
+<text x="570" y="842" class="body" text-anchor="middle">Request + alarm updates</text>
+<rect x="100" y="710" width="250" height="150" rx="8" fill="#fff" stroke="#ed1a82" stroke-width="1.7"/>
 <g transform="translate(197 738) scale(1.1666666666666667)" fill="none" stroke="#ed1a82" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="42" height="30" rx="3"/><path d="m4 11 20 16 20-16"/></g>
 <text x="225" y="812" class="node" text-anchor="middle">Email subscription</text>
-<text x="225" y="841" class="small" text-anchor="middle">Confirm before receiving alerts</text>
-<path d="M820 785H685" class="planned"/>
+<text x="225" y="841" class="small" text-anchor="middle">Confirmed / submission + result verified</text>
+<path d="M820 785H685" class="monitoring"/>
 <text x="750" y="769" class="label" text-anchor="middle" style="fill:#ed1a82">Alarm / recovery</text>
-<path d="M460 785H355" class="planned"/>
+<path d="M460 785H355" class="monitoring"/>
 <text x="409" y="769" class="label" text-anchor="middle" style="fill:#ed1a82">Email</text>
-<text x="800" y="890" class="small" text-anchor="middle">Planned telemetry uses request IDs and operational metadata; credentials and full prompts are omitted.</text>
-<rect x="40" y="920" width="1520" height="118" rx="8" fill="#fbf8ff" stroke="#8c35f5" stroke-width="1.7" stroke-dasharray="7 5"/>
+<text x="800" y="889" class="small" text-anchor="middle">Logs contain operational metadata; result emails include the generated guide (up to 12,000 characters).</text>
+<text x="800" y="908" class="small" text-anchor="middle">Failure and latency alarms also send recovery notices; SNS publishing failures have a separate alarm.</text>
+<rect x="40" y="930" width="1520" height="108" rx="8" fill="#fbf8ff" stroke="#8c35f5" stroke-width="1.7"/>
+<path d="M85 224H24V977H60" class="infra"/>
 <g transform="translate(65 946) scale(1.1458333333333333)" fill="none" stroke="#8c35f5" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="24" r="12"/><circle cx="24" cy="24" r="4"/><path d="M24 3v7M24 38v7M3 24h7M38 24h7M9 9l5 5M34 34l5 5M9 39l5-5M34 14l5-5"/></g>
 <text x="145" y="966" class="node" text-anchor="start">Infrastructure as Code</text>
-<text x="145" y="994" class="small" text-anchor="start">Planned monitoring deployment</text>
+<text x="145" y="994" class="small" text-anchor="start">GitHub Actions / main branch</text>
 <path d="M460 941V1017" fill="none" stroke="#cfa6ff" stroke-width="1.5"/>
 <g transform="translate(500 949) scale(2.0)" fill="#e45c42"><path xmlns="http://www.w3.org/2000/svg" d="M0 17.57h4.248l-1.316 3.974H0zm0-7.557h6.75l-1.316 3.974H0zm0-7.557h9.252L7.936 6.431H0zm13.44 0H24v3.975H12.123zM9.62 13.987l1.317-3.974H24v3.974zM8.436 17.57H24v3.975H7.119Z" /></g>
 <text x="567" y="968" class="node" text-anchor="start">Serverless Framework</text>
 <text x="567" y="994" class="body" text-anchor="start">Deploys a CloudFormation stack</text>
+<path d="M450 977H492" class="infra"/>
 <path d="M930 977H1045" class="infra"/>
+<path d="M1270 930V785H1155" class="infra"/>
+<text x="1365" y="854" class="label" text-anchor="middle" style="fill:#8c35f5">Creates / updates</text>
 <g transform="translate(1070 951) scale(1.0)" fill="none" stroke="#8c35f5" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m24 3 21 11-21 11L3 14 24 3ZM3 24l21 11 21-11M3 34l21 11 21-11"/></g>
 <text x="1140" y="966" class="node" text-anchor="start">Monitoring resources</text>
 <text x="1140" y="994" class="body" text-anchor="start">CloudWatch + SNS + scoped IAM</text>
-<text x="800" y="1062" class="small" text-anchor="middle">Current app and CI are implemented. Monitoring, alerts, and the infrastructure configuration are design proposals only.</text>
+<text x="800" y="1062" class="small" text-anchor="middle">Implemented: two sequential agents, direct request emails, CloudWatch monitoring, and CI/CD-managed AWS infrastructure.</text>
 </svg>
