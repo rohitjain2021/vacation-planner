@@ -55,13 +55,13 @@ Secrets and variables are scoped per repository or environment. Settings in anot
 
 Bootstrap parameters are grouped at the top of that independent template. Supply the existing provider ARN and the confirmed Streamlit IAM user ARN. Save the `DeploymentRoleArn` output as `AWS_DEPLOY_ROLE_ARN`; the pipeline derives the bucket name from the shared service/stage/region and assumed AWS account.
 
-**Bootstrap has not been applied.** The current CI/CD-only requirement also applies to this first creation. A repository cannot assume a role that does not yet exist: an authorized account-bootstrap pipeline must apply this template, or the owner must explicitly approve a one-time bootstrap exception. Do not broaden a different project's OIDC trust policy to bypass this prerequisite. All monitoring deployments and subsequent updates run through this repository's workflow.
+**Bootstrap completed on November 18, 2026.** The owner explicitly approved a one-time exception to create the `vacation-planner-monitoring-prod-github-bootstrap` CloudFormation stack using the current AWS identity. AWS reported `CREATE_COMPLETE` for the dedicated role and private deployment bucket. The role ARN and selected runtime IAM username were saved as this repository's Actions variables, and the recipient was configured as an encrypted Actions secret. Bucket verification confirmed public-access blocking, AES256 encryption, and versioning. This exception covers the initial bootstrap only; monitoring deployment and subsequent updates still run through GitHub Actions. No other project's OIDC trust policy was broadened. The monitoring stack remains undeployed pending Serverless authentication configuration and CI verification.
 
 Serverless Framework v4 authentication remains separate from AWS OIDC. The API-metering repository's optional Serverless packaging job was skipped during the configuration review; its green test run is not evidence that a Serverless key is available here.
 
 The pipeline packages the Serverless service, validates the generated CloudFormation template, deploys it, checks the stack and log retention, and verifies submitted/completed smoke events without calling Bedrock or Serper. It records a sanitized summary in the Actions job summary. Serverless may create/use its normal deployment artifact bucket; it is not used to store travel plans. Generated Serverless state and resolved parameters remain ignored and are not uploaded as GitHub artifacts.
 
-Local deployment, removal, and rollback commands are blocked by a pipeline-only guard. Review changes in Git and publish them through the workflow; no local or console infrastructure creation is part of this deployment process.
+Local monitoring deployment, removal, and rollback commands are blocked by a pipeline-only guard. Review changes in Git and publish them through the workflow. The separately approved one-time bootstrap above does not authorize local monitoring deployments or future local infrastructure updates.
 
 ## Email confirmation and verification
 
