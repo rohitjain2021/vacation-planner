@@ -20,11 +20,11 @@ A simple travel-planning app built with **Streamlit**, **CrewAI**, and **Amazon 
 
 ## 2. Architecture
 
-![Vacation Planner architecture](./architecture.svg)
+![Vacation Planner architecture](./docs/images/vacation-planner-architecture.png)
 
-[Open the full-size architecture diagram](./architecture.svg).
+[Open the full-size diagram](./docs/images/vacation-planner-architecture.png) | [Editable SVG](./architecture.svg).
 
-The diagram represents the components implemented in this repository. The Python application runs locally or on a Streamlit host; Amazon Bedrock and Serper are external services called by that application.
+Solid blue connections show the current Streamlit, CrewAI, Serper, Bedrock, and GitHub delivery flow. Dashed pink connections and Planned labels show the proposed CloudWatch logs, metrics, alarms, SNS, and email alerts. The bottom strip shows the proposed Serverless Framework / CloudFormation monitoring deployment. Monitoring and infrastructure deployment are design proposals only; they have not been implemented by this diagram update.
 
 ### How the parts connect
 
