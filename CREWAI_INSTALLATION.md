@@ -77,7 +77,7 @@ crewai install
 crewai run
 ```
 
-This runs the generated research/report starter, which still needs Vacation Planner agents and tasks. Bedrock calls incur AWS usage charges.
+This runs the configured Vacation Planner research and reporting agents using the destination input in `src/vacation_planner/main.py` (currently London). For the web interface, run `uv run streamlit run streamlitui.py` from the same project directory. Bedrock and Serper calls can incur usage charges.
 
 If you receive `AccessDeniedException`, check that your AWS identity can invoke Nova Pro through Bedrock, including the cross-region inference profile and its destination models. A region/profile mismatch can cause `ValidationException`; invalid or expired credentials require correcting the keys or session token in `.env`.
 
