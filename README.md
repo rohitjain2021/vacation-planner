@@ -150,7 +150,7 @@ With the AWS stack deployed and its SNS subscription confirmed, the administrato
 
 - **Python checks:** Install the locked dependencies with Python 3.13, compile the application and tests, and run the Streamlit and credential-exclusion tests.
 - **Credential scan:** Run a checksum-verified, pinned Gitleaks release across Git history with secret values redacted. Two reviewed historical false positives in blank configuration/documentation are ignored by exact fingerprint, not by excluding entire files.
-- **No provider keys:** Tests replace the CrewAI entry point with a mock. The workflow does not receive AWS or Serper secrets and does not make paid model or search calls.
+- **No provider keys in tests:** Tests replace the CrewAI entry point with a mock. Validation jobs receive no AWS or Serper credentials and make no paid model or search calls.
 
 Run the application tests locally from `vacation_planner/`:
 
@@ -158,4 +158,4 @@ Run the application tests locally from `vacation_planner/`:
 uv run --frozen python -m unittest discover -s ../tests -v
 ```
 
-Streamlit Community Cloud continues updating from its configured GitHub branch. After both checks pass on `main`, a separate job packages, validates, deploys, and verifies the monitoring infrastructure using Serverless Framework and the repository's private deployment settings. Pull requests cannot deploy. To require passing checks before a merge, configure a branch rule for `main` requiring **Python checks** and **Credential scan**.
+Streamlit Community Cloud continues updating from its configured GitHub branch. After both checks pass on `main`, a separate job packages, validates, deploys, and verifies monitoring using Serverless Framework and a project-specific GitHub OIDC role. AWS deployment access keys are not stored in Actions. The role bootstrap and repository configuration are prerequisites, documented in the [infrastructure guide](infrastructure/README.md); monitoring has not yet been deployed. Pull requests cannot deploy. To require passing checks before a merge, configure a branch rule for `main` requiring **Python checks** and **Credential scan**.

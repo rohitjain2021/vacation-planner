@@ -84,14 +84,16 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
     concurrency:
       group: vacation-planner-prod-monitoring
       cancel-in-progress: false
     env:
       CI: 'true'
-      AWS_REGION: us-east-1
-      AWS_DEFAULT_REGION: us-east-1
       AWS_EC2_METADATA_DISABLED: 'true'
+      AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
       ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
       RUNTIME_IAM_USER_NAME: ${{ vars.RUNTIME_IAM_USER_NAME }}
       SERVERLESS_ACCESS_KEY: ${{ secrets.SERVERLESS_ACCESS_KEY }}
@@ -102,28 +104,40 @@ jobs:
         with:
           persist-credentials: false
       - name: Check private deployment configuration
-        env:
-          HAS_AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY_ID != '' }}
-          HAS_AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY != '' }}
         run: |
-          if [ "$HAS_AWS_ACCESS_KEY" != true ] || [ "$HAS_AWS_SECRET_KEY" != true ]; then
-            echo '::error::Configure AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in repository Actions secrets.'
-            exit 1
+          missing=0
+          if [ -z "$AWS_DEPLOY_ROLE_ARN" ]; then
+            echo '::error::Set the AWS_DEPLOY_ROLE_ARN repository variable after the project OIDC bootstrap.'
+            missing=1
+          fi
+          if [ -z "$RUNTIME_IAM_USER_NAME" ]; then
+            echo '::error::Set RUNTIME_IAM_USER_NAME to the existing IAM user used by Streamlit.'
+            missing=1
           fi
           if [ -z "$ALERT_EMAIL" ]; then
             echo '::error::Configure ALERT_EMAIL in repository Actions secrets.'
-            exit 1
+            missing=1
           fi
           if [ -z "$SERVERLESS_ACCESS_KEY" ] && [ -z "$SERVERLESS_LICENSE_KEY" ]; then
             echo '::error::Configure SERVERLESS_ACCESS_KEY or SERVERLESS_LICENSE_KEY in repository Actions secrets.'
-            exit 1
+            missing=1
           fi
-      - name: Configure current AWS deployment credentials
+          exit "$missing"
+      - name: Load shared monitoring region
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          settings = json.loads(Path('vacation_planner/src/vacation_planner/monitoring_config.json').read_text())
+          with open(os.environ['GITHUB_ENV'], 'a') as target:
+              target.write('AWS_REGION=' + settings['region'] + '\n')
+              target.write('AWS_DEFAULT_REGION=' + settings['region'] + '\n')
+          PY
+      - name: Assume the project deployment role through OIDC
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          role-to-assume: ${{ env.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: github-vacation-planner-monitoring
           aws-region: ${{ env.AWS_REGION }}
           mask-aws-account-id: true
       - name: Set up uv and Python

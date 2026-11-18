@@ -18,6 +18,13 @@ def validate():
     assert 0 < settings["failure_count_threshold"] <= 100
     assert settings["slow_request_seconds"] > 0
     assert settings["alarm_period_seconds"] >= 60
+    bootstrap = yaml.safe_load((ROOT / "infrastructure/bootstrap/github-deployment-role.yml").read_text())
+    assert bootstrap["Parameters"]["ServiceName"]["Default"] == settings["service_name"]
+    assert bootstrap["Parameters"]["Stage"]["Default"] == settings["stage"]
+    assert settings["log_group_name"] == f"/apps/vacation-planner/{settings['stage']}"
+    assert settings["topic_name"] == f"vacation-planner-{settings['stage']}-notifications"
+    assert settings["alarm_name_prefix"] == f"vacation-planner-{settings['stage']}"
+    assert settings["dashboard_name"] == f"vacation-planner-{settings['stage']}"
     assert "functions" not in template
     resources = template["resources"]["Resources"]
     assert not any(resource["Type"] in {"AWS::Lambda::Function", "AWS::DynamoDB::Table", "AWS::SQS::Queue"} for resource in resources.values())

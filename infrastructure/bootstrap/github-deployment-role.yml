@@ -1,0 +1,239 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: One-time vacation-planner GitHub OIDC bootstrap; separate from monitoring deployment
+
+# Independent bootstrap inputs. Keep resource names aligned with monitoring_config.json.
+# Apply through an authorized account bootstrap process before enabling deployment.
+Parameters:
+  ServiceName:
+    Type: String
+    Default: vacation-planner-monitoring
+    AllowedValues: [vacation-planner-monitoring]
+  Stage:
+    Type: String
+    Default: prod
+    AllowedValues: [prod]
+  RuntimeIamUserArn:
+    Type: String
+    Description: ARN of the existing IAM user used by Streamlit; confirm before bootstrap.
+    AllowedPattern: 'arn:aws:iam::[0-9]{12}:user/[A-Za-z0-9+=,.@_/-]+'
+  GithubOidcProviderArn:
+    Type: String
+    Description: Existing account GitHub OIDC provider ARN; no new provider is created.
+    AllowedPattern: 'arn:aws:iam::[0-9]{12}:oidc-provider/token.actions.githubusercontent.com'
+
+Resources:
+  DeploymentBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName:
+        Fn::Sub: '${ServiceName}-${Stage}-${AWS::AccountId}-${AWS::Region}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Project
+          Value: vacation-planner
+  DeploymentBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: DeploymentBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - Fn::GetAtt: [DeploymentBucket, Arn]
+              - Fn::Sub: '${DeploymentBucket.Arn}/*'
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+  DeploymentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        Fn::Sub: '${ServiceName}-${Stage}-github-deploy'
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated:
+                Ref: GithubOidcProviderArn
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+                token.actions.githubusercontent.com:sub:
+                  - repo:rohitjain2021/vacation-planner:ref:refs/heads/main
+                  - repo:rohitjain2021@44851658/vacation-planner@1460177139:ref:refs/heads/main
+      Policies:
+        - PolicyName: DeployVacationMonitoring
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ProjectStack
+                Effect: Allow
+                Action:
+                  - cloudformation:CreateStack
+                  - cloudformation:UpdateStack
+                  - cloudformation:DeleteStack
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeStackResources
+                  - cloudformation:ListStackResources
+                  - cloudformation:GetTemplate
+                  - cloudformation:GetTemplateSummary
+                  - cloudformation:UpdateTerminationProtection
+                Resource:
+                  Fn::Sub: 'arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ServiceName}-${Stage}/*'
+              - Sid: ValidateAndDiscover
+                Effect: Allow
+                Action:
+                  - cloudformation:ValidateTemplate
+                  - logs:DescribeLogGroups
+                Resource: '*'
+              - Sid: DeploymentBucketMetadata
+                Effect: Allow
+                Action:
+                  - s3:GetBucketLocation
+                  - s3:GetBucketVersioning
+                  - s3:GetEncryptionConfiguration
+                  - s3:ListBucket
+                Resource:
+                  Fn::GetAtt: [DeploymentBucket, Arn]
+              - Sid: ProjectDeploymentArtifacts
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource:
+                  Fn::Sub: '${DeploymentBucket.Arn}/serverless/${ServiceName}/${Stage}/*'
+              - Sid: FrameworkMetadataReadOnly
+                Effect: Allow
+                Action: ssm:GetParameter
+                Resource:
+                  - Fn::Sub: 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/serverless-framework/deployment/s3-bucket'
+                  - Fn::Sub: 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/serverless-framework/state/s3-bucket'
+              - Sid: ProjectLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:DeleteLogGroup
+                  - logs:PutRetentionPolicy
+                  - logs:DeleteRetentionPolicy
+                  - logs:CreateLogStream
+                  - logs:DeleteLogStream
+                  - logs:DescribeLogStreams
+                  - logs:PutLogEvents
+                  - logs:PutMetricFilter
+                  - logs:DeleteMetricFilter
+                  - logs:DescribeMetricFilters
+                  - logs:FilterLogEvents
+                  - logs:TagResource
+                  - logs:UntagResource
+                  - logs:ListTagsForResource
+                Resource:
+                  - Fn::Sub: 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/apps/vacation-planner/${Stage}'
+                  - Fn::Sub: 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/apps/vacation-planner/${Stage}:*'
+              - Sid: ProjectNotifications
+                Effect: Allow
+                Action:
+                  - sns:CreateTopic
+                  - sns:DeleteTopic
+                  - sns:SetTopicAttributes
+                  - sns:GetTopicAttributes
+                  - sns:Subscribe
+                  - sns:ListSubscriptionsByTopic
+                  - sns:Publish
+                  - sns:TagResource
+                  - sns:UntagResource
+                  - sns:ListTagsForResource
+                Resource:
+                  Fn::Sub: 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:vacation-planner-${Stage}-notifications'
+              - Sid: ProjectSubscriptions
+                Effect: Allow
+                Action:
+                  - sns:Unsubscribe
+                  - sns:GetSubscriptionAttributes
+                  - sns:SetSubscriptionAttributes
+                Resource:
+                  Fn::Sub: 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:vacation-planner-${Stage}-notifications:*'
+              - Sid: ProjectAlarms
+                Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricAlarm
+                  - cloudwatch:DeleteAlarms
+                  - cloudwatch:DescribeAlarms
+                  - cloudwatch:TagResource
+                  - cloudwatch:UntagResource
+                  - cloudwatch:ListTagsForResource
+                Resource:
+                  Fn::Sub: 'arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:vacation-planner-${Stage}-*'
+              - Sid: ProjectDashboard
+                Effect: Allow
+                Action:
+                  - cloudwatch:PutDashboard
+                  - cloudwatch:GetDashboard
+                  - cloudwatch:DeleteDashboards
+                Resource:
+                  Fn::Sub: 'arn:${AWS::Partition}:cloudwatch::${AWS::AccountId}:dashboard/vacation-planner-${Stage}'
+              - Sid: ProjectRuntimePolicy
+                Effect: Allow
+                Action:
+                  - iam:CreatePolicy
+                  - iam:DeletePolicy
+                  - iam:GetPolicy
+                  - iam:CreatePolicyVersion
+                  - iam:DeletePolicyVersion
+                  - iam:GetPolicyVersion
+                  - iam:ListPolicyVersions
+                  - iam:ListEntitiesForPolicy
+                  - iam:TagPolicy
+                  - iam:UntagPolicy
+                Resource:
+                  Fn::Sub: 'arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${ServiceName}-${Stage}-*'
+              - Sid: ExistingRuntimeUserRead
+                Effect: Allow
+                Action:
+                  - iam:GetUser
+                  - iam:ListAttachedUserPolicies
+                Resource:
+                  Ref: RuntimeIamUserArn
+              - Sid: AttachOnlyProjectPolicyToRuntimeUser
+                Effect: Allow
+                Action:
+                  - iam:AttachUserPolicy
+                  - iam:DetachUserPolicy
+                Resource:
+                  Ref: RuntimeIamUserArn
+                Condition:
+                  ArnLike:
+                    iam:PolicyARN:
+                      Fn::Sub: 'arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${ServiceName}-${Stage}-*'
+
+Outputs:
+  DeploymentRoleArn:
+    Description: Set repository variable AWS_DEPLOY_ROLE_ARN to this output.
+    Value:
+      Fn::GetAtt: [DeploymentRole, Arn]
+  DeploymentBucketName:
+    Value:
+      Ref: DeploymentBucket

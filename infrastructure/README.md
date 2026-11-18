@@ -35,14 +35,29 @@ If AWS logging fails, email publishing is still attempted. If SNS publishing fai
 
 The existing [Vacation Planner CI](https://github.com/rohitjain2021/vacation-planner/actions/workflows/ci.yml) deploys this stack from `main` only after Python tests and credential scanning pass. Pull requests validate code and configuration without credentials or AWS mutations.
 
-Deployment secrets:
+Repository variables (the same OIDC convention used by `e-learning-platform`):
 
-- `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`: the authorized current AWS deployment identity.
-- `AWS_SESSION_TOKEN`: only when those credentials are temporary.
+- `AWS_DEPLOY_ROLE_ARN`: the `DeploymentRoleArn` output from this project's bootstrap stack.
+- `RUNTIME_IAM_USER_NAME`: the existing IAM user whose credentials the Streamlit app uses. This is a separate identity from the GitHub deployment role; confirm it before bootstrap.
+
+Repository secrets:
+
 - `SERVERLESS_ACCESS_KEY` **or** `SERVERLESS_LICENSE_KEY`: Serverless Framework v4 authentication.
 - `ALERT_EMAIL`: the administrator recipient, configured privately.
 
-The optional repository variable `RUNTIME_IAM_USER_NAME` names the **existing IAM user whose AWS credentials Streamlit uses**. If it is omitted and the deployment credentials belong to an IAM user, that same user receives the scoped monitoring policy. When deployment credentials belong to a role, this variable is required. If Streamlit uses a different IAM user, explicitly set this variable before deployment so the policy is attached to the correct user.
+GitHub receives temporary AWS credentials using `id-token: write` and the project's OIDC role. Do not add long-lived AWS access keys to Actions for deployment. Deployment refuses an unexpected role and never infers the application's IAM user from the CI identity. Streamlit's existing runtime credentials stay in its private hosting settings.
+
+Secrets and variables are scoped per repository or environment. Settings in another repository are not automatically available here. This workflow uses repository settings; an environment-scoped setup requires an explicit matching job `environment` and trust-policy subject change, reviewed together.
+
+### One-time OIDC bootstrap prerequisite
+
+[`bootstrap/github-deployment-role.yml`](bootstrap/github-deployment-role.yml) prepares a dedicated deployment role and a private, encrypted, versioned deployment-artifact bucket. It reuses the existing account GitHub OIDC provider, trusts only this repository's `main` branch (including GitHub's numeric-ID subject format), and scopes permissions to this monitoring stack, its resources, and attaching its monitoring policy to the explicitly selected runtime user. It cannot modify its own role or another project's deployment role. The bucket stores deployment artifacts, not travel plans.
+
+Bootstrap parameters are grouped at the top of that independent template. Supply the existing provider ARN and the confirmed Streamlit IAM user ARN. Save the `DeploymentRoleArn` output as `AWS_DEPLOY_ROLE_ARN`; the pipeline derives the bucket name from the shared service/stage/region and assumed AWS account.
+
+**Bootstrap has not been applied.** The current CI/CD-only requirement also applies to this first creation. A repository cannot assume a role that does not yet exist: an authorized account-bootstrap pipeline must apply this template, or the owner must explicitly approve a one-time bootstrap exception. Do not broaden a different project's OIDC trust policy to bypass this prerequisite. All monitoring deployments and subsequent updates run through this repository's workflow.
+
+Serverless Framework v4 authentication remains separate from AWS OIDC. The API-metering repository's optional Serverless packaging job was skipped during the configuration review; its green test run is not evidence that a Serverless key is available here.
 
 The pipeline packages the Serverless service, validates the generated CloudFormation template, deploys it, checks the stack and log retention, and verifies submitted/completed smoke events without calling Bedrock or Serper. It records a sanitized summary in the Actions job summary. Serverless may create/use its normal deployment artifact bucket; it is not used to store travel plans. Generated Serverless state and resolved parameters remain ignored and are not uploaded as GitHub artifacts.
 

@@ -13,5 +13,7 @@
   "slow_request_seconds": 120,
   "notification_mode": "all",
   "maximum_destination_characters": 120,
-  "maximum_email_result_characters": 12000
+  "maximum_email_result_characters": 12000,
+  "alarm_name_prefix": "vacation-planner-prod",
+  "notification_failure_threshold": 1
 }

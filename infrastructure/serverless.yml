@@ -1,5 +1,5 @@
-# All non-secret parameters are shared with the application in this top-level file.
-# ALERT_EMAIL and RUNTIME_IAM_USER_NAME are supplied privately by the CI deployment job.
+# Operational parameters are defined in the shared monitoring_config.json below.
+# Private recipient and runtime identity come only from the deployment environment.
 service: ${file(../vacation_planner/src/vacation_planner/monitoring_config.json):service_name}
 frameworkVersion: '4'
 custom:
@@ -9,26 +9,26 @@ provider:
   region: ${self:custom.settings.region}
   stage: ${self:custom.settings.stage}
   stackName: ${self:service}-${self:provider.stage}
+  deploymentBucket:
+    name: ${env:DEPLOYMENT_BUCKET_NAME}
   stackParameters:
-    - ParameterKey: NotificationEmail
-      ParameterValue: ${env:ALERT_EMAIL}
-    - ParameterKey: RuntimeIamUserName
-      ParameterValue: ${env:RUNTIME_IAM_USER_NAME}
+  - ParameterKey: NotificationEmail
+    ParameterValue: ${env:ALERT_EMAIL}
+  - ParameterKey: RuntimeIamUserName
+    ParameterValue: ${env:RUNTIME_IAM_USER_NAME}
   stackTags:
     Project: vacation-planner
     Component: monitoring
     ManagedBy: github-actions
 plugins:
-  - ./plugins/pipeline-only.cjs
-
-# Resources-only service: the Streamlit application stays on its existing host.
+- ./plugins/pipeline-only.cjs
 resources:
   Parameters:
     NotificationEmail:
       Type: String
       NoEcho: true
       Description: Private administrator email for submission, result, and alarm messages.
-      AllowedPattern: '^[^@\s]+@[^@\s]+\.[^@\s]+$'
+      AllowedPattern: ^[^@\s]+@[^@\s]+\.[^@\s]+$
     RuntimeIamUserName:
       Type: String
       Description: Existing IAM user whose credentials the Streamlit app uses.
@@ -44,7 +44,8 @@ resources:
     RequestLogStream:
       Type: AWS::Logs::LogStream
       Properties:
-        LogGroupName: {Ref: RequestLogs}
+        LogGroupName:
+          Ref: RequestLogs
         LogStreamName: ${self:custom.settings.log_stream_name}
     Notifications:
       Type: AWS::SNS::Topic
@@ -54,106 +55,130 @@ resources:
     AdministratorSubscription:
       Type: AWS::SNS::Subscription
       Properties:
-        TopicArn: {Ref: Notifications}
+        TopicArn:
+          Ref: Notifications
         Protocol: email
-        Endpoint: {Ref: NotificationEmail}
+        Endpoint:
+          Ref: NotificationEmail
     AlarmPublishPolicy:
       Type: AWS::SNS::TopicPolicy
       Properties:
-        Topics: [{Ref: Notifications}]
+        Topics:
+        - Ref: Notifications
         PolicyDocument:
           Version: '2012-10-17'
           Statement:
-            - Effect: Allow
-              Principal: {Service: cloudwatch.amazonaws.com}
-              Action: sns:Publish
-              Resource: {Ref: Notifications}
-              Condition:
-                StringEquals:
-                  'aws:SourceAccount': {Ref: 'AWS::AccountId'}
-                ArnLike:
-                  'aws:SourceArn':
-                    Fn::Sub: 'arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:vacation-planner-*'
+          - Effect: Allow
+            Principal:
+              Service: cloudwatch.amazonaws.com
+            Action: sns:Publish
+            Resource:
+              Ref: Notifications
+            Condition:
+              StringEquals:
+                aws:SourceAccount:
+                  Ref: AWS::AccountId
+              ArnLike:
+                aws:SourceArn:
+                  Fn::Join:
+                  - ''
+                  - - 'arn:'
+                    - Ref: AWS::Partition
+                    - ':cloudwatch:'
+                    - Ref: AWS::Region
+                    - ':'
+                    - Ref: AWS::AccountId
+                    - ':alarm:'
+                    - ${self:custom.settings.alarm_name_prefix}
+                    - -*
     RuntimeMonitoringPolicy:
       Type: AWS::IAM::ManagedPolicy
       Properties:
+        ManagedPolicyName: ${self:service}-${self:provider.stage}-runtime-monitoring
         Description: Write only Vacation Planner request logs and notifications.
-        Users: [{Ref: RuntimeIamUserName}]
+        Users:
+        - Ref: RuntimeIamUserName
         PolicyDocument:
           Version: '2012-10-17'
           Statement:
-            - Effect: Allow
-              Action: logs:PutLogEvents
-              Resource:
-                Fn::Join:
-                  - ''
-                  - - 'arn:'
-                    - {Ref: 'AWS::Partition'}
-                    - ':logs:'
-                    - {Ref: 'AWS::Region'}
-                    - ':'
-                    - {Ref: 'AWS::AccountId'}
-                    - ':log-group:'
-                    - {Ref: RequestLogs}
-                    - ':log-stream:'
-                    - ${self:custom.settings.log_stream_name}
-            - Effect: Allow
-              Action: sns:Publish
-              Resource: {Ref: Notifications}
+          - Effect: Allow
+            Action: logs:PutLogEvents
+            Resource:
+              Fn::Join:
+              - ''
+              - - 'arn:'
+                - Ref: AWS::Partition
+                - ':logs:'
+                - Ref: AWS::Region
+                - ':'
+                - Ref: AWS::AccountId
+                - ':log-group:'
+                - Ref: RequestLogs
+                - ':log-stream:'
+                - ${self:custom.settings.log_stream_name}
+          - Effect: Allow
+            Action: sns:Publish
+            Resource:
+              Ref: Notifications
     SubmittedMetric:
       Type: AWS::Logs::MetricFilter
       Properties:
-        LogGroupName: {Ref: RequestLogs}
+        LogGroupName:
+          Ref: RequestLogs
         FilterPattern: '{ $.event = "submitted" }'
         MetricTransformations:
-          - MetricNamespace: ${self:custom.settings.metric_namespace}
-            MetricName: Submitted
-            MetricValue: '1'
-            DefaultValue: 0
+        - MetricNamespace: ${self:custom.settings.metric_namespace}
+          MetricName: Submitted
+          MetricValue: '1'
+          DefaultValue: 0
     SucceededMetric:
       Type: AWS::Logs::MetricFilter
       Properties:
-        LogGroupName: {Ref: RequestLogs}
+        LogGroupName:
+          Ref: RequestLogs
         FilterPattern: '{ $.event = "succeeded" }'
         MetricTransformations:
-          - MetricNamespace: ${self:custom.settings.metric_namespace}
-            MetricName: Succeeded
-            MetricValue: '1'
-            DefaultValue: 0
+        - MetricNamespace: ${self:custom.settings.metric_namespace}
+          MetricName: Succeeded
+          MetricValue: '1'
+          DefaultValue: 0
     FailedMetric:
       Type: AWS::Logs::MetricFilter
       Properties:
-        LogGroupName: {Ref: RequestLogs}
+        LogGroupName:
+          Ref: RequestLogs
         FilterPattern: '{ $.event = "failed" }'
         MetricTransformations:
-          - MetricNamespace: ${self:custom.settings.metric_namespace}
-            MetricName: Failed
-            MetricValue: '1'
-            DefaultValue: 0
+        - MetricNamespace: ${self:custom.settings.metric_namespace}
+          MetricName: Failed
+          MetricValue: '1'
+          DefaultValue: 0
     DurationMetric:
       Type: AWS::Logs::MetricFilter
       Properties:
-        LogGroupName: {Ref: RequestLogs}
+        LogGroupName:
+          Ref: RequestLogs
         FilterPattern: '{ ($.event = "succeeded") || ($.event = "failed") }'
         MetricTransformations:
-          - MetricNamespace: ${self:custom.settings.metric_namespace}
-            MetricName: GenerationDuration
-            MetricValue: $.duration_seconds
-            Unit: Seconds
+        - MetricNamespace: ${self:custom.settings.metric_namespace}
+          MetricName: GenerationDuration
+          MetricValue: $.duration_seconds
+          Unit: Seconds
     NotificationFailureMetric:
       Type: AWS::Logs::MetricFilter
       Properties:
-        LogGroupName: {Ref: RequestLogs}
+        LogGroupName:
+          Ref: RequestLogs
         FilterPattern: '{ $.event = "notification_failed" }'
         MetricTransformations:
-          - MetricNamespace: ${self:custom.settings.metric_namespace}
-            MetricName: NotificationFailures
-            MetricValue: '1'
-            DefaultValue: 0
+        - MetricNamespace: ${self:custom.settings.metric_namespace}
+          MetricName: NotificationFailures
+          MetricValue: '1'
+          DefaultValue: 0
     RepeatedFailuresAlarm:
       Type: AWS::CloudWatch::Alarm
       Properties:
-        AlarmName: vacation-planner-prod-repeated-failures
+        AlarmName: ${self:custom.settings.alarm_name_prefix}-repeated-failures
         AlarmDescription: Repeated plan-generation failures; individual requests also send status emails.
         Namespace: ${self:custom.settings.metric_namespace}
         MetricName: Failed
@@ -163,12 +188,14 @@ resources:
         Threshold: ${self:custom.settings.failure_count_threshold}
         ComparisonOperator: GreaterThanOrEqualToThreshold
         TreatMissingData: notBreaching
-        AlarmActions: [{Ref: Notifications}]
-        OKActions: [{Ref: Notifications}]
+        AlarmActions:
+        - Ref: Notifications
+        OKActions:
+        - Ref: Notifications
     SlowPlanningAlarm:
       Type: AWS::CloudWatch::Alarm
       Properties:
-        AlarmName: vacation-planner-prod-slow-planning
+        AlarmName: ${self:custom.settings.alarm_name_prefix}-slow-planning
         Namespace: ${self:custom.settings.metric_namespace}
         MetricName: GenerationDuration
         Statistic: Maximum
@@ -177,37 +204,63 @@ resources:
         Threshold: ${self:custom.settings.slow_request_seconds}
         ComparisonOperator: GreaterThanThreshold
         TreatMissingData: notBreaching
-        AlarmActions: [{Ref: Notifications}]
-        OKActions: [{Ref: Notifications}]
+        AlarmActions:
+        - Ref: Notifications
+        OKActions:
+        - Ref: Notifications
     NotificationFailureAlarm:
       Type: AWS::CloudWatch::Alarm
       Properties:
-        AlarmName: vacation-planner-prod-notification-failures
+        AlarmName: ${self:custom.settings.alarm_name_prefix}-notification-failures
         Namespace: ${self:custom.settings.metric_namespace}
         MetricName: NotificationFailures
         Statistic: Sum
         Period: ${self:custom.settings.alarm_period_seconds}
         EvaluationPeriods: 1
-        Threshold: 1
+        Threshold: ${self:custom.settings.notification_failure_threshold}
         ComparisonOperator: GreaterThanOrEqualToThreshold
         TreatMissingData: notBreaching
-        AlarmActions: [{Ref: Notifications}]
+        AlarmActions:
+        - Ref: Notifications
     MonitoringDashboard:
       Type: AWS::CloudWatch::Dashboard
       Properties:
         DashboardName: ${self:custom.settings.dashboard_name}
         DashboardBody:
-          Fn::Sub:
-            - '{"widgets":[{"type":"metric","x":0,"y":0,"width":12,"height":6,"properties":{"title":"Request outcomes","region":"${Region}","period":300,"stat":"Sum","metrics":[["${Namespace}","Submitted"],["${Namespace}","Succeeded"],["${Namespace}","Failed"],["${Namespace}","NotificationFailures"]]}},{"type":"metric","x":12,"y":0,"width":12,"height":6,"properties":{"title":"Generation duration (seconds)","region":"${Region}","period":300,"stat":"Maximum","metrics":[["${Namespace}","GenerationDuration"]]}},{"type":"log","x":0,"y":6,"width":24,"height":8,"properties":{"title":"Recent destinations and outcomes","region":"${Region}","view":"table","query":"SOURCE ''${LogGroup}'' | fields @timestamp, request_id, destination, event, duration_seconds, error_category | sort @timestamp desc | limit 50"}}]}'
-            - Region: {Ref: 'AWS::Region'}
-              Namespace: ${self:custom.settings.metric_namespace}
-              LogGroup: {Ref: RequestLogs}
+          Fn::Join:
+          - ''
+          - - '{"widgets":[{"type":"metric","x":0,"y":0,"width":12,"height":6,"properties":{"title":"Request outcomes","region":"'
+            - &id001
+              Ref: AWS::Region
+            - '","period":300,"stat":"Sum","metrics":[["'
+            - ${self:custom.settings.metric_namespace}
+            - '","Submitted"],["'
+            - ${self:custom.settings.metric_namespace}
+            - '","Succeeded"],["'
+            - ${self:custom.settings.metric_namespace}
+            - '","Failed"],["'
+            - ${self:custom.settings.metric_namespace}
+            - '","NotificationFailures"]]}},{"type":"metric","x":12,"y":0,"width":12,"height":6,"properties":{"title":"Generation
+              duration (seconds)","region":"'
+            - *id001
+            - '","period":300,"stat":"Maximum","metrics":[["'
+            - ${self:custom.settings.metric_namespace}
+            - '","GenerationDuration"]]}},{"type":"log","x":0,"y":6,"width":24,"height":8,"properties":{"title":"Recent
+              destinations and outcomes","region":"'
+            - *id001
+            - '","view":"table","query":"SOURCE '''
+            - Ref: RequestLogs
+            - ''' | fields @timestamp, request_id, destination, event, duration_seconds, error_category | sort @timestamp
+              desc | limit 50"}}]}'
   Outputs:
     LogGroupName:
-      Value: {Ref: RequestLogs}
+      Value:
+        Ref: RequestLogs
     NotificationTopicArn:
-      Value: {Ref: Notifications}
+      Value:
+        Ref: Notifications
     DashboardName:
       Value: ${self:custom.settings.dashboard_name}
     RuntimeMonitoringPolicyArn:
-      Value: {Ref: RuntimeMonitoringPolicy}
+      Value:
+        Ref: RuntimeMonitoringPolicy

@@ -30,20 +30,19 @@ def run():
     from validate import validate
     validate()
     environment = dict(os.environ)
-    for name in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "ALERT_EMAIL"):
+    for name in ("ALERT_EMAIL", "RUNTIME_IAM_USER_NAME"):
         if not environment.get(name):
-            raise RuntimeError(f"Missing repository Actions secret: {name}")
+            raise RuntimeError(f"Missing deployment setting: {name}")
     if not (environment.get("SERVERLESS_ACCESS_KEY") or environment.get("SERVERLESS_LICENSE_KEY")):
         raise RuntimeError("Configure SERVERLESS_ACCESS_KEY or SERVERLESS_LICENSE_KEY in repository Actions secrets.")
     if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", environment["ALERT_EMAIL"]):
         raise RuntimeError("ALERT_EMAIL must contain one valid recipient address.")
     session = boto3.Session(region_name=SETTINGS["region"])
     identity = session.client("sts").get_caller_identity()
-    if not environment.get("RUNTIME_IAM_USER_NAME"):
-        match = re.match(r"arn:[^:]+:iam::\d+:user/(.+)", identity["Arn"])
-        if not match:
-            raise RuntimeError("Set the RUNTIME_IAM_USER_NAME repository variable to the existing IAM user used by Streamlit.")
-        environment["RUNTIME_IAM_USER_NAME"] = match.group(1).split("/")[-1]
+    expected_role = f"{SETTINGS['service_name']}-{SETTINGS['stage']}-github-deploy"
+    if not identity["Arn"].split(":")[-1].startswith(f"assumed-role/{expected_role}/"):
+        raise RuntimeError("Deployment requires this project's OIDC deployment role.")
+    environment["DEPLOYMENT_BUCKET_NAME"] = f"{SETTINGS['service_name']}-{SETTINGS['stage']}-{identity['Account']}-{SETTINGS['region']}"
     if not re.fullmatch(r"[\w+=,.@-]+", environment["RUNTIME_IAM_USER_NAME"]):
         raise RuntimeError("RUNTIME_IAM_USER_NAME must name an existing IAM user, not an ARN or role.")
     cf = session.client("cloudformation")
