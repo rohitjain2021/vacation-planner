@@ -1,5 +1,7 @@
 # AI Vacation Planner
 
+[![Vacation Planner CI](https://github.com/rohitjain2021/vacation-planner/actions/workflows/ci.yml/badge.svg)](https://github.com/rohitjain2021/vacation-planner/actions/workflows/ci.yml)
+
 A simple travel-planning app built with **Streamlit**, **CrewAI**, and **Amazon Bedrock Nova Pro**. Enter a city or country to research places to visit, local food, and destination history, then turn those findings into a downloadable travel guide.
 
 ## Live demo
@@ -135,3 +137,19 @@ vacation-planner/
 - **Service usage:** Generating a plan calls Serper and Amazon Bedrock and can incur usage charges.
 - **Session storage:** The last plan is retained in Streamlit session state, not a persistent trip database. Download it to keep a copy.
 - **Generated files:** `.env`, generated reports, and local environment files are excluded from Git. On a hosted instance, `report.md` is a local runtime file and may be overwritten by another run.
+
+## 8. GitHub Actions pipeline
+
+[Vacation Planner CI](https://github.com/rohitjain2021/vacation-planner/actions/workflows/ci.yml) runs on pushes to `main`, pull requests, and manual requests from the Actions tab.
+
+- **Python checks:** Install the locked dependencies with Python 3.13, compile the application and tests, and run the Streamlit and credential-exclusion tests.
+- **Credential scan:** Run a checksum-verified, pinned Gitleaks release across Git history with secret values redacted. Two reviewed historical false positives in blank configuration/documentation are ignored by exact fingerprint, not by excluding entire files.
+- **No provider keys:** Tests replace the CrewAI entry point with a mock. The workflow does not receive AWS or Serper secrets and does not make paid model or search calls.
+
+Run the application tests locally from `vacation_planner/`:
+
+```powershell
+uv run --frozen python -m unittest discover -s ../tests -v
+```
+
+Streamlit Community Cloud continues updating from its configured GitHub branch. This workflow checks changes; it does not gate direct pushes or change deployment settings. To require passing checks before a merge, configure a branch rule for `main` requiring **Python checks** and **Credential scan**.

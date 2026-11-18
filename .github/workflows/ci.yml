@@ -1,0 +1,68 @@
+name: Vacation Planner CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-checks:
+    name: Python checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: vacation_planner
+    env:
+      AWS_EC2_METADATA_DISABLED: "true"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.13.8"
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: vacation_planner/uv.lock
+      - name: Install locked dependencies
+        run: uv sync --locked
+      - name: Check Python syntax
+        run: uv run --frozen python -m compileall -q src streamlitui.py ../tests
+      - name: Run credential-free application tests
+        run: uv run --frozen python -m unittest discover -s ../tests -v
+
+  secret-scan:
+    name: Credential scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install verified Gitleaks release
+        env:
+          GITLEAKS_VERSION: "8.30.1"
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl --fail --silent --show-error --location \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}" \
+            --output "${RUNNER_TEMP}/${archive}"
+          echo "${GITLEAKS_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict
+          mkdir -p "${RUNNER_TEMP}/gitleaks-bin"
+          tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}/gitleaks-bin" gitleaks
+      - name: Scan history for exposed credentials
+        run: '"${RUNNER_TEMP}/gitleaks-bin/gitleaks" git --redact=100 --no-banner --log-opts="--all" .'

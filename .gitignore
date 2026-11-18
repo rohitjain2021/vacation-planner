@@ -16,3 +16,6 @@ service-account*.json
 __pycache__/
 .crewai/
 vacation_planner/report.md
+
+# Local Streamlit credentials, including nested app directories.
+**/.streamlit/secrets.toml

@@ -1,0 +1,5 @@
+# Reviewed historical false positives, scoped to the exact commit, file, rule, and line.
+# Empty AWS_SESSION_TOKEN followed by the CREWAI_TRACING_ENABLED variable name.
+b013abdfddc6823224382c529297f5fd7f2b10c2:vacation_planner/.env.example:generic-api-key:6
+# Generated agent instructions describing environment variable names, without values.
+b013abdfddc6823224382c529297f5fd7f2b10c2:vacation_planner/AGENTS.md:generic-api-key:23
